@@ -15,7 +15,9 @@ RAG_API_TIMEOUT = float(os.getenv("RAG_API_TIMEOUT", "30"))
 
 
 def write_message(message: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(message, ensure_ascii=False) + "\n")
+    # MCP clients may launch stdio servers under a non-UTF-8 locale.
+    # ASCII-safe JSON avoids charmap failures on decomposed Cyrillic filenames.
+    sys.stdout.write(json.dumps(message, ensure_ascii=True) + "\n")
     sys.stdout.flush()
 
 

@@ -9,6 +9,10 @@ wheels/
 # Virtual environments
 .venv
 
+# Local secrets
+.env
+.env.*
+
 # Local IDE files
 .idea/
 

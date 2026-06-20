@@ -175,4 +175,88 @@ RAG_API_BASE_URL=http://<rag-server-ip>:8000 uv run python rag_mcp_server.py
 - Docker база: `docker compose up -d postgres`
 - LM Studio server: `http://127.0.0.1:1234/v1`
 - embedding model: `text-embedding-nomic-embed-text-v1.5@q8_0`
-- FastAPI RAG server: `uv run uvicorn rag_api:app --host 127.0.0.1 --port 8000`
+- FastAPI RAG server: `uv run uvicorn rag_api:app --host 0.0.0.0 --port 8000`
+
+## Evaluation service
+
+Отдельный backend для проверки результата тренажера. Он принимает итоговый JSON фронтенда (`levels`, `microTasks`, `rubricHint`, метрики), вызывает LM Studio с мастер-промптом и возвращает JSON модели.
+
+Запуск:
+
+```bash
+LM_STUDIO_CHAT_BASE_URL=http://192.168.1.42:1234/v1 \
+LM_STUDIO_API_KEY=<token> \
+EVALUATOR_MODEL=qwen/qwen3.5-4b \
+TRUST_MODEL_RAG_USAGE=false \
+uv run uvicorn evaluation_service:app --host 0.0.0.0 --port 8010
+```
+
+`TRUST_MODEL_RAG_USAGE=false` не дает модели приписывать себе RAG-источники без явного tool output в ответе API. Включай `true` только если LM Studio API реально прокидывает MCP tool results в completion.
+
+Проверка:
+
+```bash
+curl http://127.0.0.1:8010/health
+# с другого ноутбука в локальной сети:
+curl http://<backend-lan-ip>:8010/health
+```
+
+Пример запроса в текущем формате фронтенда:
+
+```bash
+curl -X POST http://127.0.0.1:8010/evaluate-selection \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grade": "junior",
+    "task": "Расчёт НМЦК по уровням",
+    "session": {"durationSec": 69, "timeBudgetSec": 2400, "finishedByTimeout": false},
+    "meters": {"stressFinal": 20, "fatigueFinal": 17},
+    "levels": [
+      {
+        "level": "l2",
+        "theme": "Срочная поставка",
+        "item": "Ручки гелевые чёрные",
+        "qtyNeeded": 200,
+        "unitNeeded": "шт",
+        "source": "44-ФЗ ст. 33 (характеристики) · ст. 34 (срок исполнения)",
+        "watch": "Срок поставки ≤ 2 дней и в наличии. Под заказ 30 дней не успеет. И именно гелевые чёрные.",
+        "chosen": {
+          "name": "Стол ЛДСП офисный",
+          "attrs": "ЛДСП, без узора",
+          "country": "Россия",
+          "chosenQty": 9,
+          "chosenUnitsInPieces": 9,
+          "srok": 10,
+          "avail": "в наличии",
+          "unitPrice": 3900,
+          "cost": 35100
+        }
+      }
+    ],
+    "microTasks": [
+      {
+        "question": "НМЦК 20 млн, снижение 27% — что включается?",
+        "options": ["Антидемпинг (ст. 37): повышенное обеспечение", "Ничего"],
+        "candidateAnswer": "Ничего"
+      }
+    ],
+    "rubricHint": "Каждый уровень — своя тема/подвох. Проверь chosenUnitsInPieces, watch и microTasks."
+  }'
+```
+
+Ответ содержит поля для карточки кандидата:
+
+```json
+{
+  "is_correct": false,
+  "score": 4,
+  "readiness_score": 40,
+  "verdict": "partially_correct",
+  "recommendation": "needs_review",
+  "competencies": [],
+  "level_results": [],
+  "microtask_results": [],
+  "violations": [],
+  "recommended_action": "..."
+}
+```

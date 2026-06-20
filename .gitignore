@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local IDE files
+.idea/
+
+# Local dataset and generated caches
+датасет для rag/
+__pycache__/
